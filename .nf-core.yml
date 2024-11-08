@@ -1,0 +1,17 @@
+bump_version: null
+lint: {}
+nf_core_version: 3.0.2
+org_path: null
+repository_type: pipeline
+template:
+  author: Luuk Harbers
+  description: Pipeline for processing single-cell long read DNA data. For example
+    10X-style barcoded DNA data that is sequenced on ONT/PacBio.
+  force: true
+  is_nfcore: true
+  name: scdnalr
+  org: nf-core
+  outdir: .
+  skip_features: []
+  version: 1.0.0dev
+update: null
