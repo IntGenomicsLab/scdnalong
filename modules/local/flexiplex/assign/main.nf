@@ -8,8 +8,7 @@ process FLEXIPLEX_ASSIGN {
         'biocontainers/flexiplex:1.01--py310h84f13bb_1' }"
 
     input:
-    tuple val(meta), path(reads)
-    tuple val(meta), path(barcodes)
+    tuple val(meta), path(reads), path(barcodes)
 
     output:
     tuple val(meta), path("*flexiplex.fastq")               , emit: reads
@@ -23,7 +22,7 @@ process FLEXIPLEX_ASSIGN {
     def args2 = task.ext.args2 ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}${meta.part ? "_part_${meta.part}" : ''}"
     """
-    # Run in discovery mode
+    # Run in assignment mode
 
     flexiplex \\
         ${args} \\

@@ -9,7 +9,7 @@ include { paramsSummaryMap                  } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc              } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML            } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText            } from '../subworkflows/local/utils_nfcore_scdnalr_pipeline'
-include { CAT_FASTQ                         } from '../modules/nf-core/cat/fastq/main'
+include { CAT_FASTQ as CAT_FASTQ_SAMPLE     } from '../modules/nf-core/cat/fastq/main'
 include { SEQKIT_STATS as SEQKIT_STATS_PRE  } from '../modules/nf-core/seqkit/stats/main'
 include { NANOCOMP as NANOCOMP_FASTQ        } from '../modules/nf-core/nanocomp/main'
 include { NANOCOMP as NANOCOMP_BAM          } from '../modules/nf-core/nanocomp/main'
@@ -40,11 +40,11 @@ workflow SCDNALR {
     //
     // MODULE: Combine fastqs from the same sample
     //
-    CAT_FASTQ ( ch_samplesheet )
+    CAT_FASTQ_SAMPLE ( ch_samplesheet )
         .reads
         .set { ch_cat_fastq }
 
-    ch_versions = ch_versions.mix (CAT_FASTQ.out.versions.first().ifEmpty(null))
+    ch_versions = ch_versions.mix (CAT_FASTQ_SAMPLE.out.versions.first().ifEmpty(null))
     
     //
     // SUBWORKFLOW: Fastq QC with Nanoplot and FastQC - Pre Flexiplex
@@ -98,7 +98,9 @@ workflow SCDNALR {
 
     }
     
-    // TODO: check with actual test file otherwise no barcodes are detected.
+
+    
+    //
     //
     // SUBWORKFLOW: RUN_FLEXIPLEX
     //
@@ -106,12 +108,15 @@ workflow SCDNALR {
         ch_cat_fastq,
         params.whitelist
     )
+    
     RUN_FLEXIPLEX.out.flexiplex_fastq
         .set { ch_flexiplex_fastq }
     
-    
     ch_versions = ch_versions.mix(RUN_FLEXIPLEX.out.versions)
-
+    
+    //
+    // SUBWORKFLOW: RUN_MINIMAP2 
+    //
     
     //
     // Collate and save software versions

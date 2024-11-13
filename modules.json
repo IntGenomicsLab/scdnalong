@@ -54,6 +54,14 @@
                             "modules"
                         ]
                     },
+                    "seqkit/split2": {
+                        "branch": "master",
+                        "git_sha": "666652151335353eef2fcd58880bcef5bc2928e1",
+                        "installed_by": [
+                            "modules"
+                        ],
+                        "patch": "modules/nf-core/seqkit/split2/seqkit-split2.diff"
+                    },
                     "seqkit/stats": {
                         "branch": "master",
                         "git_sha": "666652151335353eef2fcd58880bcef5bc2928e1",
