@@ -27,7 +27,8 @@
                     "type": "string",
                     "format": "directory-path",
                     "description": "The output directory where the results will be saved. You have to use absolute paths to storage on Cloud infrastructure.",
-                    "fa_icon": "fas fa-folder-open"
+                    "fa_icon": "fas fa-folder-open",
+                    "default": "./results"
                 },
                 "email": {
                     "type": "string",
@@ -235,5 +236,48 @@
         {
             "$ref": "#/$defs/generic_options"
         }
-    ]
+    ],
+    "properties": {
+        "skip_save_minimap2_index": {
+            "type": "boolean"
+        },
+        "save_secondary_alignment": {
+            "type": "boolean",
+            "default": true
+        },
+        "skip_dedup": {
+            "type": "boolean"
+        },
+        "split_fastq_n": {
+            "type": "integer",
+            "default": 1
+        },
+        "skip_qc": {
+            "type": "boolean"
+        },
+        "skip_fastqc": {
+            "type": "boolean"
+        },
+        "skip_multiqc": {
+            "type": "boolean"
+        },
+        "skip_nanoplot": {
+            "type": "boolean"
+        },
+        "skip_fastq_nanocomp": {
+            "type": "boolean"
+        },
+        "skip_bam_nanocomp": {
+            "type": "boolean"
+        },
+        "skip_toulligqc": {
+            "type": "boolean"
+        },
+        "skip_seqkit_stats": {
+            "type": "boolean"
+        },
+        "whitelist": {
+            "type": "string"
+        }
+    }
 }

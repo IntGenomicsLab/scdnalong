@@ -1,10 +1,22 @@
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    CONFIG FILES
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+ch_multiqc_config                       = Channel.fromPath("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
+ch_multiqc_custom_config                = params.multiqc_config ? Channel.fromPath( params.multiqc_config, checkIfExists: true ) : Channel.empty()
+ch_multiqc_logo                         = params.multiqc_logo   ? Channel.fromPath( params.multiqc_logo, checkIfExists: true ) : Channel.empty()
+ch_multiqc_custom_methods_description   = params.multiqc_methods_description ? file(params.multiqc_methods_description, checkIfExists: true) : file("$projectDir/assets/methods_description_template.yml", checkIfExists: true)
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { FASTQC                            } from '../modules/nf-core/fastqc/main'
-include { MULTIQC                           } from '../modules/nf-core/multiqc/main'
+include { MULTIQC as MULTIQC_RAWQC          } from "../modules/nf-core/multiqc/main"
+include { MULTIQC as MULTIQC_FINALQC        } from "../modules/nf-core/multiqc/main"
 include { paramsSummaryMap                  } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc              } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML            } from '../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -19,6 +31,7 @@ include { MINIMAP2_ALIGN                    } from '../modules/nf-core/minimap2/
 include { MINIMAP2_INDEX                    } from '../modules/nf-core/minimap2/index/main'
 include { FLEXIFORMATTER                    } from '../modules/local/flexiformatter/main'
 include { PICARD_MARKDUPLICATES             } from '../modules/nf-core/picard/markduplicates/main' 
+include { CUSTOM_DUMPSOFTWAREVERSIONS       } from '../modules/nf-core/custom/dumpsoftwareversions/main'
 
 /*
  * Import subworkflows
@@ -176,7 +189,7 @@ workflow SCDNALR {
     }
 
     //
-    // MODULE: Run MINIMAP2_ALIGN TODO: add module specific options (no splicing)
+    // MODULE: Run MINIMAP2_ALIGN
     //
     MINIMAP2_ALIGN (
         ch_flexiplex_fastq,
@@ -220,8 +233,36 @@ workflow SCDNALR {
         ch_tagged_bam,
         ch_fasta 
     )
+    ch_dedup_bam = BAM_SORT_STATS_SAMTOOLS.out.bam
+    
+    // these stats go for multiqc
+    ch_dedup_sorted_stats = BAM_SORT_STATS_SAMTOOLS.out.stats
+    ch_dedup_sorted_flagstat = BAM_SORT_STATS_SAMTOOLS.out.flagstat
+    ch_dedup_sorted_idxstats = BAM_SORT_STATS_SAMTOOLS.out.idxstats
     
     ch_versions = ch_versions.mix(BAM_SORT_STATS_SAMTOOLS.out.versions)
+    
+    //
+    // MODULE: NanoComp for BAM files (unfiltered for QC purposes)
+    //
+    ch_nanocomp_bam_html = Channel.empty()
+    ch_nanocomp_bam_txt = Channel.empty()
+
+    if (!params.skip_qc && !params.skip_bam_nanocomp) {
+
+        NANOCOMP_BAM (
+            ch_dedup_bam
+                .collect{it[1]}
+                .map{
+                    [ [ 'id': 'nanocomp_bam.' ] , it ]
+                }
+
+        )
+
+        ch_nanocomp_bam_html = NANOCOMP_BAM.out.report_html
+        ch_nanocomp_bam_txt = NANOCOMP_BAM.out.stats_txt
+        ch_versions = ch_versions.mix( NANOCOMP_BAM.out.versions )
+    }
     
     //
     // Collate and save software versions
@@ -236,49 +277,77 @@ workflow SCDNALR {
 
 
     //
-    // MODULE: MultiQC
+    // Collate and save software versions
     //
-    
-    ch_multiqc_config        = Channel.fromPath(
-        "$projectDir/assets/multiqc_config.yml", checkIfExists: true)
-    ch_multiqc_custom_config = params.multiqc_config ?
-        Channel.fromPath(params.multiqc_config, checkIfExists: true) :
-        Channel.empty()
-    ch_multiqc_logo          = params.multiqc_logo ?
-        Channel.fromPath(params.multiqc_logo, checkIfExists: true) :
-        Channel.empty()
-
-    summary_params      = paramsSummaryMap(
-        workflow, parameters_schema: "nextflow_schema.json")
-    ch_workflow_summary = Channel.value(paramsSummaryMultiqc(summary_params))
-    ch_multiqc_files = ch_multiqc_files.mix(
-        ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
-    ch_multiqc_custom_methods_description = params.multiqc_methods_description ?
-        file(params.multiqc_methods_description, checkIfExists: true) :
-        file("$projectDir/assets/methods_description_template.yml", checkIfExists: true)
-    ch_methods_description                = Channel.value(
-        methodsDescriptionText(ch_multiqc_custom_methods_description))
-
-    ch_multiqc_files = ch_multiqc_files.mix(ch_collated_versions)
-    ch_multiqc_files = ch_multiqc_files.mix(
-        ch_methods_description.collectFile(
-            name: 'methods_description_mqc.yaml',
-            sort: true
+    CUSTOM_DUMPSOFTWAREVERSIONS (
+            ch_versions.unique().collectFile(name: 'collated_versions.yml')
         )
-    )
-    
-    MULTIQC (
-        ch_multiqc_files.collect(),
-        ch_multiqc_config.toList(),
-        ch_multiqc_custom_config.toList(),
-        ch_multiqc_logo.toList(),
-        [],
-        []
-    )
-    
+
+if (!params.skip_qc && !params.skip_multiqc){
+
+        //
+        // MODULE: MultiQC for raw data
+        // Next section adapted from nf-core/scnanoseq
+
+        ch_multiqc_rawqc_files = Channel.empty()
+        ch_multiqc_rawqc_files = ch_multiqc_rawqc_files.mix(ch_multiqc_config)
+        ch_multiqc_rawqc_files = ch_multiqc_rawqc_files.mix(ch_multiqc_custom_config.collect().ifEmpty([]))
+        ch_multiqc_rawqc_files = ch_multiqc_rawqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
+        ch_multiqc_rawqc_files = ch_multiqc_rawqc_files.mix(ch_fastqc_multiqc_pre_flexiplex.collect().ifEmpty([]))
+        ch_multiqc_rawqc_files = ch_multiqc_rawqc_files.mix(ch_nanocomp_fastq_txt.collect{it[1]}.ifEmpty([]))
+
+        MULTIQC_RAWQC (
+            ch_multiqc_rawqc_files.collect(),
+            ch_multiqc_config,
+            ch_multiqc_custom_config.collect().ifEmpty([]),
+            ch_multiqc_logo.collect().ifEmpty([]),
+            [],
+            []
+        )
+
+        //
+        // MODULE: MultiQC for final pipeline outputs
+        //
+        summary_params = paramsSummaryMap(workflow, parameters_schema: "nextflow_schema.json")
+        ch_workflow_summary    = Channel.value(paramsSummaryMultiqc(summary_params))
+
+        ch_multiqc_finalqc_files = Channel.empty()
+        ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_multiqc_config)
+        ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_multiqc_custom_config.collect().ifEmpty([]))
+        ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml')) // TODO: check if the ifempty needs to be removed
+        ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect().ifEmpty([])) // TODO: check if the ifempty needs to be removed
+ 
+        ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_fastqc_multiqc_pre_flexiplex.collect().ifEmpty([]))
+        ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_seqkit_stats_pre.collect({it[1]}).ifEmpty([]))
+        
+        ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_fastqc_multiqc_post_flexiplex.collect().ifEmpty([]))
+        ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_seqkit_stats_post.collect({it[1]}).ifEmpty([]))
+
+        ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_nanocomp_bam_txt.collect{it[1]}.ifEmpty([]))
+
+        if (!params.skip_dedup) {
+            ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_dedup_sorted_flagstat.collect{it[1]}.ifEmpty([]))
+            ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_dedup_sorted_idxstats.collect{it[1]}.ifEmpty([]))
+            ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_dedup_sorted_stats.collect{it[1]}.ifEmpty([]))
+
+        }
+        
+
+        MULTIQC_FINALQC (
+            ch_multiqc_finalqc_files.collect(),
+            ch_multiqc_config,
+            ch_multiqc_custom_config.collect().ifEmpty([]),
+            ch_multiqc_logo.collect().ifEmpty([]),
+            [],
+            []
+        )
+        ch_multiqc_report = MULTIQC_FINALQC.out.report
+        ch_versions       = ch_versions.mix(MULTIQC_FINALQC.out.versions)
+    }
+
     emit:
-    multiqc_report = MULTIQC.out.report.toList() // channel: /path/to/multiqc_report.html
-    versions       = ch_versions                 // channel: [ path(versions.yml) ]
+    multiqc_report = ch_multiqc_report.toList()
+    versions       = ch_versions
     
 }
 
