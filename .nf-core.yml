@@ -7,7 +7,7 @@ template:
   author: Luuk Harbers
   description: Pipeline for processing single-cell long read DNA data. For example
     10X-style barcoded DNA data that is sequenced on ONT/PacBio.
-  force: true
+  force: false
   is_nfcore: true
   name: scdnalr
   org: nf-core
