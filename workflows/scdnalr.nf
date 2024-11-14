@@ -218,7 +218,7 @@ workflow SCDNALR {
     // 
     BAM_SORT_STATS_SAMTOOLS (
         ch_tagged_bam,
-        fasta 
+        ch_fasta 
     )
     
     ch_versions = ch_versions.mix(BAM_SORT_STATS_SAMTOOLS.out.versions)
