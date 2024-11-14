@@ -9,17 +9,25 @@ include { paramsSummaryMap                  } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc              } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML            } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText            } from '../subworkflows/local/utils_nfcore_scdnalr_pipeline'
+
 include { CAT_FASTQ as CAT_FASTQ_SAMPLE     } from '../modules/nf-core/cat/fastq/main'
 include { SEQKIT_STATS as SEQKIT_STATS_PRE  } from '../modules/nf-core/seqkit/stats/main'
+include { SEQKIT_STATS as SEQKIT_STATS_POST } from '../modules/nf-core/seqkit/stats/main'
 include { NANOCOMP as NANOCOMP_FASTQ        } from '../modules/nf-core/nanocomp/main'
 include { NANOCOMP as NANOCOMP_BAM          } from '../modules/nf-core/nanocomp/main'
+include { MINIMAP2_ALIGN                    } from '../modules/nf-core/minimap2/align/main'
+include { MINIMAP2_INDEX                    } from '../modules/nf-core/minimap2/index/main'
+include { FLEXIFORMATTER                    } from '../modules/local/flexiformatter/main'
+include { PICARD_MARKDUPLICATES             } from '../modules/nf-core/picard/markduplicates/main' 
 
 /*
  * Import subworkflows
 */
-include { QCFASTQ_NANOPLOT_FASTQC as FASTQC_NANOPLOT_PRE_FLEXIPLEX      } from '../subworkflows/local/toulligqc_nanoplot_fastqc'
-include { QCFASTQ_NANOPLOT_FASTQC as FASTQC_NANOPLOT_POST_FLEXIPLEX     } from '../subworkflows/local/toulligqc_nanoplot_fastqc'
-include { RUN_FLEXIPLEX                                                 } from '../subworkflows/local/run_flexiplex'
+include { QCFASTQ_NANOPLOT_FASTQC as FASTQC_NANOPLOT_PRE_FLEXIPLEX  } from '../subworkflows/local/toulligqc_nanoplot_fastqc'
+include { QCFASTQ_NANOPLOT_FASTQC as FASTQC_NANOPLOT_POST_FLEXIPLEX } from '../subworkflows/local/toulligqc_nanoplot_fastqc'
+include { RUN_FLEXIPLEX                                             } from '../subworkflows/local/run_flexiplex'
+include { PREPARE_REFERENCE_FILES                                   } from '../subworkflows/local/prepare_reference_files'
+include { BAM_SORT_STATS_SAMTOOLS                                   } from '../subworkflows/nf-core/bam_sort_stats_samtools/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -115,8 +123,105 @@ workflow SCDNALR {
     ch_versions = ch_versions.mix(RUN_FLEXIPLEX.out.versions)
     
     //
-    // SUBWORKFLOW: RUN_MINIMAP2 
+    // SUBWORKFLOW: Fastq QC with Nanoplot and FastQC - post flexiplex
+    // Credits for this subworkflow go to nf-core/scnanoseq developers
+    ch_fastqc_multiqc_post_flexiplex = Channel.empty()
+    ch_seqkit_stats_post = Channel.empty()
+    if (!params.skip_qc){
+        FASTQC_NANOPLOT_POST_FLEXIPLEX (
+            ch_flexiplex_fastq,
+            params.skip_nanoplot,
+            params.skip_toulligqc,
+            params.skip_fastqc
+        )
+
+        ch_fastqc_multiqc_post_flexiplex = FASTQC_NANOPLOT_POST_FLEXIPLEX.out.fastqc_multiqc.ifEmpty([])
+        ch_versions = ch_versions.mix(FASTQC_NANOPLOT_POST_FLEXIPLEX.out.nanoplot_version.first().ifEmpty(null))
+        ch_versions = ch_versions.mix(FASTQC_NANOPLOT_POST_FLEXIPLEX.out.toulligqc_version.first().ifEmpty(null))
+        ch_versions = ch_versions.mix(FASTQC_NANOPLOT_POST_FLEXIPLEX.out.fastqc_version.first().ifEmpty(null))
+
+        SEQKIT_STATS_POST (
+            ch_flexiplex_fastq
+        )
+        ch_seqkit_stats_post = SEQKIT_STATS_POST.out.stats
+        ch_versions = ch_versions.mix(SEQKIT_STATS_POST.out.versions.first().ifEmpty(null))
+    }
+    
     //
+    // SUBWORKFLOW: PREPARE_REFERENCE_FILES
+    //
+    
+    PREPARE_REFERENCE_FILES (
+        params.fasta
+    )
+    
+    ch_fasta = PREPARE_REFERENCE_FILES.out.prepped_fasta
+    ch_fai = PREPARE_REFERENCE_FILES.out.prepped_fai
+    
+    ch_versions = ch_versions.mix(PREPARE_REFERENCE_FILES.out.versions)
+    
+    //
+    // MODULE: Run MINIMAP2_INDEX
+    //
+    
+    // Create minimap2 index channel
+    
+    
+    if (!params.skip_save_minimap2_index) {
+        
+        MINIMAP2_INDEX ( ch_fasta )
+        ch_minimap_index = MINIMAP2_INDEX.out.index
+        
+        ch_versions = ch_versions.mix(MINIMAP2_INDEX.out.versions)
+    }
+
+    //
+    // MODULE: Run MINIMAP2_ALIGN TODO: add module specific options (no splicing)
+    //
+    MINIMAP2_ALIGN (
+        ch_flexiplex_fastq,
+        ch_minimap_index,
+        true,
+        'bai',
+        "",
+        ""
+    )
+
+    ch_versions = ch_versions.mix(MINIMAP2_ALIGN.out.versions)
+    MINIMAP2_ALIGN.out.bam 
+        | set { ch_minimap_bam }
+    
+    //
+    // MODULE: Run FLEXI_FORMATTER
+    //
+    FLEXIFORMATTER (
+        ch_minimap_bam
+    )
+    ch_versions = ch_versions.mix(FLEXIFORMATTER.out.versions)
+    FLEXIFORMATTER.out.bam
+        | set { ch_tagged_bam }
+    
+    
+    //
+    // MODULE: MarkDuplicates
+    //
+    PICARD_MARKDUPLICATES ( 
+        ch_tagged_bam,
+        ch_fasta,
+        ch_fai
+    )
+    
+    ch_versions = ch_versions.mix(PICARD_MARKDUPLICATES.out.versions)
+    
+    //
+    // SUBWORKFLOW: BAM_SORT_STATS_SAMTOOLS
+    // 
+    BAM_SORT_STATS_SAMTOOLS (
+        ch_tagged_bam,
+        fasta 
+    )
+    
+    ch_versions = ch_versions.mix(BAM_SORT_STATS_SAMTOOLS.out.versions)
     
     //
     // Collate and save software versions

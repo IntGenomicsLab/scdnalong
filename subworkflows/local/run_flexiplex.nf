@@ -97,13 +97,22 @@ workflow RUN_FLEXIPLEX {
         )
         
         ch_versions = ch_versions.mix(FLEXIPLEX_ASSIGN.out.versions)
+        
+        //
+        // MODULE: Compress Fastqs
+        //
+        PIGZ_COMPRESS ( FLEXIPLEX_ASSIGN.out.reads )
+        
+        ch_versions = ch_versions.mix(PIGZ_COMPRESS.out.versions)
+        
         // Group by ID for CATFASTQ
-        FLEXIPLEX_ASSIGN.out.reads
+        PIGZ_COMPRESS.out.archive
             | map { meta, reads ->
                 [meta.subMap('id', 'single_end'), meta.part, reads] }
             | groupTuple
             | map { meta, part, reads -> [meta + [partcount: part.size()], reads] }
             | set { ch_grouped_flexiplex_fastq }
+        
         
         //
         // MODULE: cat fastq
@@ -115,13 +124,10 @@ workflow RUN_FLEXIPLEX {
         
         ch_versions = ch_versions.mix(CAT_FASTQ_SPLIT.out.versions)
         
-        //
-        // MODULE: Compress Fastq
-        //
-        PIGZ_COMPRESS ( CAT_FASTQ_SPLIT.out.reads )
+
         
         
     emit:
-        flexiplex_fastq = PIGZ_COMPRESS.out.archive
+        flexiplex_fastq = CAT_FASTQ_SPLIT.out.reads
         versions = ch_versions
 }
