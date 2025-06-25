@@ -218,19 +218,30 @@ workflow SCDNALR {
     //
     // MODULE: MarkDuplicates
     //
-    PICARD_MARKDUPLICATES ( 
-        ch_tagged_bam,
-        ch_fasta,
-        ch_fai
-    )
     
-    ch_versions = ch_versions.mix(PICARD_MARKDUPLICATES.out.versions)
+    if (!params.skip_dedup) {
+        
+        PICARD_MARKDUPLICATES ( 
+            ch_tagged_bam,
+            ch_fasta,
+            ch_fai
+        )
+    
+        ch_versions = ch_versions.mix(PICARD_MARKDUPLICATES.out.versions)
+        
+        ch_bam = PICARD_MARKDUPLICATES.out.bam
+    
+    } else {
+        
+        // If deduplication is skipped, we use the tagged BAM as the deduplicated BAM
+        ch_bam = ch_tagged_bam
+    }
     
     //
     // SUBWORKFLOW: BAM_SORT_STATS_SAMTOOLS
     // 
     BAM_SORT_STATS_SAMTOOLS (
-        ch_tagged_bam,
+        ch_bam,
         ch_fasta 
     )
     ch_dedup_bam = BAM_SORT_STATS_SAMTOOLS.out.bam
