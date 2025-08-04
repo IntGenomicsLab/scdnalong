@@ -1,21 +1,32 @@
-Changes in module 'nf-core/seqkit/split2'
+Changes in component 'nf-core/seqkit/split2'
 'modules/nf-core/seqkit/split2/meta.yml' is unchanged
 Changes in 'seqkit/split2/main.nf':
 --- modules/nf-core/seqkit/split2/main.nf
 +++ modules/nf-core/seqkit/split2/main.nf
-@@ -11,7 +11,7 @@
+@@ -1,7 +1,8 @@
+ process SEQKIT_SPLIT2 {
+     tag "$meta.id"
+     label 'process_medium'
+-
++    array 100
++    
+     conda "${moduleDir}/environment.yml"
+     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+         'https://depot.galaxyproject.org/singularity/seqkit:2.9.0--h9ee0642_0' :
+@@ -11,8 +12,8 @@
      tuple val(meta), path(reads)
  
      output:
 -    tuple val(meta), path("**/*.gz"), emit: reads
-+    tuple val(meta), path("**/*.{fastq,fq}{,.gz}"), emit: reads
-     path "versions.yml"             , emit: versions
+-    path "versions.yml"             , emit: versions
++    tuple val(meta), path("**/*.{fastq,fq}{,.gz}")  , emit: reads
++    path "versions.yml"                             , emit: versions
  
      when:
+     task.ext.when == null || task.ext.when
 
 'modules/nf-core/seqkit/split2/environment.yml' is unchanged
 'modules/nf-core/seqkit/split2/tests/length.config' is unchanged
-'modules/nf-core/seqkit/split2/tests/tags.yml' is unchanged
 'modules/nf-core/seqkit/split2/tests/main.nf.test' is unchanged
 'modules/nf-core/seqkit/split2/tests/part.config' is unchanged
 'modules/nf-core/seqkit/split2/tests/main.nf.test.snap' is unchanged
