@@ -30,7 +30,7 @@ include { NANOCOMP as NANOCOMP_BAM          } from '../modules/nf-core/nanocomp/
 include { MINIMAP2_ALIGN                    } from '../modules/nf-core/minimap2/align/main'
 include { MINIMAP2_INDEX                    } from '../modules/nf-core/minimap2/index/main'
 include { FLEXIFORMATTER                    } from '../modules/local/flexiformatter/main'
-include { PICARD_MARKDUPLICATES             } from '../modules/nf-core/picard/markduplicates/main' 
+include { PICARD_MARKDUPLICATES             } from '../modules/nf-core/picard/markduplicates/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS       } from '../modules/nf-core/custom/dumpsoftwareversions/main'
 
 /*
@@ -52,12 +52,13 @@ workflow SCDNALR {
 
     take:
     ch_samplesheet // channel: samplesheet read in from --input
-    
+
     main:
 
     ch_versions = Channel.empty()
     ch_multiqc_files = Channel.empty()
-    
+    ch_multiqc_report = Channel.empty()
+
     //
     // MODULE: Combine fastqs from the same sample
     //
@@ -66,7 +67,7 @@ workflow SCDNALR {
         .set { ch_cat_fastq }
 
     ch_versions = ch_versions.mix (CAT_FASTQ_SAMPLE.out.versions.first().ifEmpty(null))
-    
+
     //
     // SUBWORKFLOW: Fastq QC with Nanoplot and FastQC - Pre Flexiplex
     // Credits for this subworkflow go to nf-core/scnanoseq developers
@@ -84,14 +85,14 @@ workflow SCDNALR {
         ch_versions = ch_versions.mix(FASTQC_NANOPLOT_PRE_FLEXIPLEX.out.nanoplot_version.first().ifEmpty(null))
         ch_versions = ch_versions.mix(FASTQC_NANOPLOT_PRE_FLEXIPLEX.out.toulligqc_version.first().ifEmpty(null))
         ch_versions = ch_versions.mix(FASTQC_NANOPLOT_PRE_FLEXIPLEX.out.fastqc_version.first().ifEmpty(null))
-        
+
         SEQKIT_STATS_PRE (
             ch_cat_fastq
         )
         ch_seqkit_stats_pre = SEQKIT_STATS_PRE.out.stats
-        ch_versions = ch_versions.mix(SEQKIT_STATS_PRE.out.versions.first().ifEmpty(null)) 
+        ch_versions = ch_versions.mix(SEQKIT_STATS_PRE.out.versions.first().ifEmpty(null))
     }
-    
+
     //
     // MODULE: NanoComp for FastQ files
     // Credits for this module go to nf-core/scnanoseq developers
@@ -118,9 +119,9 @@ workflow SCDNALR {
         ch_versions = ch_versions.mix( NANOCOMP_FASTQ.out.versions )
 
     }
-    
 
-    
+
+
     //
     //
     // SUBWORKFLOW: RUN_FLEXIPLEX
@@ -129,12 +130,12 @@ workflow SCDNALR {
         ch_cat_fastq,
         params.whitelist
     )
-    
+
     RUN_FLEXIPLEX.out.flexiplex_fastq
         .set { ch_flexiplex_fastq }
-    
+
     ch_versions = ch_versions.mix(RUN_FLEXIPLEX.out.versions)
-    
+
     //
     // SUBWORKFLOW: Fastq QC with Nanoplot and FastQC - post flexiplex
     // Credits for this subworkflow go to nf-core/scnanoseq developers
@@ -159,32 +160,32 @@ workflow SCDNALR {
         ch_seqkit_stats_post = SEQKIT_STATS_POST.out.stats
         ch_versions = ch_versions.mix(SEQKIT_STATS_POST.out.versions.first().ifEmpty(null))
     }
-    
+
     //
     // SUBWORKFLOW: PREPARE_REFERENCE_FILES
     //
-    
+
     PREPARE_REFERENCE_FILES (
         params.fasta
     )
-    
+
     ch_fasta = PREPARE_REFERENCE_FILES.out.prepped_fasta
     ch_fai = PREPARE_REFERENCE_FILES.out.prepped_fai
-    
+
     ch_versions = ch_versions.mix(PREPARE_REFERENCE_FILES.out.versions)
-    
+
     //
     // MODULE: Run MINIMAP2_INDEX
     //
-    
+
     // Create minimap2 index channel
-    
-    
+
+
     if (!params.skip_save_minimap2_index) {
-        
+
         MINIMAP2_INDEX ( ch_fasta )
         ch_minimap_index = MINIMAP2_INDEX.out.index
-        
+
         ch_versions = ch_versions.mix(MINIMAP2_INDEX.out.versions)
     }
 
@@ -201,9 +202,9 @@ workflow SCDNALR {
     )
 
     ch_versions = ch_versions.mix(MINIMAP2_ALIGN.out.versions)
-    MINIMAP2_ALIGN.out.bam 
+    MINIMAP2_ALIGN.out.bam
         | set { ch_minimap_bam }
-    
+
     //
     // MODULE: Run FLEXI_FORMATTER
     //
@@ -213,46 +214,46 @@ workflow SCDNALR {
     ch_versions = ch_versions.mix(FLEXIFORMATTER.out.versions)
     FLEXIFORMATTER.out.bam
         | set { ch_tagged_bam }
-    
-    
+
+
     //
     // MODULE: MarkDuplicates
     //
-    
+
     if (!params.skip_dedup) {
-        
-        PICARD_MARKDUPLICATES ( 
+
+        PICARD_MARKDUPLICATES (
             ch_tagged_bam,
             ch_fasta,
             ch_fai
         )
-    
+
         ch_versions = ch_versions.mix(PICARD_MARKDUPLICATES.out.versions)
-        
+
         ch_bam = PICARD_MARKDUPLICATES.out.bam
-    
+
     } else {
-        
+
         // If deduplication is skipped, we use the tagged BAM as the deduplicated BAM
         ch_bam = ch_tagged_bam
     }
-    
+
     //
     // SUBWORKFLOW: BAM_SORT_STATS_SAMTOOLS
-    // 
+    //
     BAM_SORT_STATS_SAMTOOLS (
         ch_bam,
-        ch_fasta 
+        ch_fasta
     )
     ch_dedup_bam = BAM_SORT_STATS_SAMTOOLS.out.bam
-    
+
     // these stats go for multiqc
     ch_dedup_sorted_stats = BAM_SORT_STATS_SAMTOOLS.out.stats
     ch_dedup_sorted_flagstat = BAM_SORT_STATS_SAMTOOLS.out.flagstat
     ch_dedup_sorted_idxstats = BAM_SORT_STATS_SAMTOOLS.out.idxstats
-    
+
     ch_versions = ch_versions.mix(BAM_SORT_STATS_SAMTOOLS.out.versions)
-    
+
     //
     // MODULE: NanoComp for BAM files (unfiltered for QC purposes)
     //
@@ -274,7 +275,7 @@ workflow SCDNALR {
         ch_nanocomp_bam_txt = NANOCOMP_BAM.out.stats_txt
         ch_versions = ch_versions.mix( NANOCOMP_BAM.out.versions )
     }
-    
+
     //
     // Collate and save software versions
     //
@@ -327,10 +328,10 @@ if (!params.skip_qc && !params.skip_multiqc){
         ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_multiqc_custom_config.collect().ifEmpty([]))
         ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml')) // TODO: check if the ifempty needs to be removed
         ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect().ifEmpty([])) // TODO: check if the ifempty needs to be removed
- 
+
         ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_fastqc_multiqc_pre_flexiplex.collect().ifEmpty([]))
         ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_seqkit_stats_pre.collect({it[1]}).ifEmpty([]))
-        
+
         ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_fastqc_multiqc_post_flexiplex.collect().ifEmpty([]))
         ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_seqkit_stats_post.collect({it[1]}).ifEmpty([]))
 
@@ -342,7 +343,7 @@ if (!params.skip_qc && !params.skip_multiqc){
             ch_multiqc_finalqc_files = ch_multiqc_finalqc_files.mix(ch_dedup_sorted_stats.collect{it[1]}.ifEmpty([]))
 
         }
-        
+
 
         MULTIQC_FINALQC (
             ch_multiqc_finalqc_files.collect(),
@@ -359,7 +360,7 @@ if (!params.skip_qc && !params.skip_multiqc){
     emit:
     multiqc_report = ch_multiqc_report.toList()
     versions       = ch_versions
-    
+
 }
 
 /*
