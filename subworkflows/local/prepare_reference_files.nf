@@ -28,7 +28,7 @@ workflow PREPARE_REFERENCE_FILES {
         //
         // MODULE: Index the fasta
         //
-        SAMTOOLS_FAIDX( ch_prepared_fasta, [ [:], "$projectDir/assets/dummy_file.txt" ])
+        SAMTOOLS_FAIDX( ch_prepared_fasta, [ [:], []])
         ch_prepared_fai = SAMTOOLS_FAIDX.out.fai
 
     emit:
