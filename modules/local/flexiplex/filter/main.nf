@@ -24,6 +24,7 @@ process FLEXIPLEX_FILTER {
     def prefix = task.ext.prefix ?: "${meta.id}${meta.part ? "_part_${meta.part}" : ''}"
     """
     flexiplex-filter \\
+        ${args} \\
         ${barcodes} \\
         --whitelist ${whitelist} \\
         --outfile ${prefix}_known_barcodes.txt
