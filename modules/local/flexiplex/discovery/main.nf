@@ -22,11 +22,11 @@ process FLEXIPLEX_DISCOVERY {
     def args2 = task.ext.args2 ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}${meta.part ? "_part_${meta.part}" : ''}"
     """
-    # Run in discovery mode
-    flexiplex \\
+    set -o pipefail
+
+    zcat -f ${reads} | flexiplex \\
         ${args} \\
-        -p ${task.cpus} \\
-        ${reads}
+        -p ${task.cpus}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

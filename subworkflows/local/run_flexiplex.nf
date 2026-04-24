@@ -2,8 +2,6 @@
 // Creates gtfs to that add introns as features
 //
 
-include { PIGZ_UNCOMPRESS                           } from '../../modules/nf-core/pigz/uncompress/main'
-include { PIGZ_COMPRESS                             } from '../../modules/nf-core/pigz/compress/main'
 include { SEQKIT_SPLIT2                             } from '../../modules/nf-core/seqkit/split2/main'
 include { FLEXIPLEX_DISCOVERY                       } from '../../modules/local/flexiplex/discovery/main'
 include { FLEXIPLEX_FILTER                          } from '../../modules/local/flexiplex/filter/main'
@@ -19,35 +17,11 @@ workflow RUN_FLEXIPLEX {
     main:
         ch_versions = Channel.empty()
 
-		//
-        // Check if reads are zipped
-        //
-        gzipped = reads.map { meta, fastq_list -> 
-            def all_gzipped = fastq_list.every { it.endsWith('.gz') }
-            def none_gzipped = fastq_list.every { !it.endsWith('.gz') }
-
-            if (!all_gzipped && !none_gzipped) {
-                throw new IllegalArgumentException("Error: Mixed gzipped and non-gzipped files in ${fastq_list}")
-            }
-            
-            return all_gzipped
-        }
-        
-        // Uncompress if gzipped
-        if (gzipped){
-            PIGZ_UNCOMPRESS( reads )
-
-            ch_reads = PIGZ_UNCOMPRESS.out.file
-            ch_versions = ch_versions.mix(PIGZ_UNCOMPRESS.out.versions)
-        } else {
-            ch_reads = reads
-        }
-
         //
         // MODULE: Run flexiplex
         //
         FLEXIPLEX_DISCOVERY (
-            ch_reads
+            reads
     	)
         
         ch_versions = ch_versions.mix(FLEXIPLEX_DISCOVERY.out.versions)
@@ -67,7 +41,7 @@ workflow RUN_FLEXIPLEX {
         // MODULE: Run SEQKIT_SPLIT2
         //
         SEQKIT_SPLIT2 (
-            ch_reads
+            reads
         )
         
         // Transpose channel and add part to metadata
@@ -97,16 +71,9 @@ workflow RUN_FLEXIPLEX {
         )
         
         ch_versions = ch_versions.mix(FLEXIPLEX_ASSIGN.out.versions)
-        
-        //
-        // MODULE: Compress Fastqs
-        //
-        PIGZ_COMPRESS ( FLEXIPLEX_ASSIGN.out.reads )
-        
-        ch_versions = ch_versions.mix(PIGZ_COMPRESS.out.versions)
-        
+
         // Group by ID for CATFASTQ
-        PIGZ_COMPRESS.out.archive
+        FLEXIPLEX_ASSIGN.out.reads
             | map { meta, reads ->
                 [meta.subMap('id', 'single_end'), meta.part, reads] }
             | groupTuple

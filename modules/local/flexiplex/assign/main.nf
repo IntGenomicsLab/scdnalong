@@ -11,7 +11,7 @@ process FLEXIPLEX_ASSIGN {
     tuple val(meta), path(reads), path(barcodes)
 
     output:
-    tuple val(meta), path("*flexiplex.fastq")               , emit: reads
+    tuple val(meta), path("*flexiplex.fastq.gz")             , emit: reads
     path "versions.yml"                                     , emit: versions
 
     when:
@@ -22,15 +22,14 @@ process FLEXIPLEX_ASSIGN {
     def args2 = task.ext.args2 ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}${meta.part ? "_part_${meta.part}" : ''}"
     """
-    # Run in assignment mode
+    set -o pipefail
 
-    flexiplex \\
+    zcat -f ${reads} | flexiplex \\
         ${args} \\
         -k ${barcodes} \\
         -p ${task.cpus} \\
-        ${reads} \\
-        > ${prefix}.flexiplex.fastq
-
+        | gzip -c \\
+        > ${prefix}.flexiplex.fastq.gz
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
