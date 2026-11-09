@@ -1,102 +1,199 @@
-[![GitHub Actions CI Status](https://github.com/nf-core/scdnalong/actions/workflows/ci.yml/badge.svg)](https://github.com/nf-core/scdnalong/actions/workflows/ci.yml)
-[![GitHub Actions Linting Status](https://github.com/nf-core/scdnalong/actions/workflows/linting.yml/badge.svg)](https://github.com/nf-core/scdnalong/actions/workflows/linting.yml)[![AWS CI](https://img.shields.io/badge/CI%20tests-full%20size-FF9900?labelColor=000000&logo=Amazon%20AWS)](https://nf-co.re/scdnalong/results)[![Cite with Zenodo](http://img.shields.io/badge/DOI-10.5281/zenodo.XXXXXXX-1073c8?labelColor=000000)](https://doi.org/10.5281/zenodo.XXXXXXX)
-[![nf-test](https://img.shields.io/badge/unit_tests-nf--test-337ab7.svg)](https://www.nf-test.com)
+# scdnalong
 
-[![Nextflow](https://img.shields.io/badge/nextflow%20DSL2-%E2%89%A524.04.2-23aa62.svg)](https://www.nextflow.io/)
-[![run with conda](http://img.shields.io/badge/run%20with-conda-3EB049?labelColor=000000&logo=anaconda)](https://docs.conda.io/en/latest/)
-[![run with docker](https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker)](https://www.docker.com/)
-[![run with singularity](https://img.shields.io/badge/run%20with-singularity-1d355c.svg?labelColor=000000)](https://sylabs.io/docs/)
-[![Launch on Seqera Platform](https://img.shields.io/badge/Launch%20%F0%9F%9A%80-Seqera%20Platform-%234256e7)](https://cloud.seqera.io/launch?pipeline=https://github.com/nf-core/scdnalong)
+> [!IMPORTANT]
+> **scdnalong is archived and no longer maintained.** It has been superseded by
+> [**LRSinglecell**](https://github.com/IntGenomicsLab/lrsinglecell), which processes
+> single-cell long-read DNA *and* cDNA in one pipeline. Use LRSinglecell for new work.
+> This repository stays available so that published results produced with scdnalong
+> can be reproduced. The instructions below are for that purpose.
 
-[![Get help on Slack](http://img.shields.io/badge/slack-nf--core%20%23scdnalong-4A154B?labelColor=000000&logo=slack)](https://nfcore.slack.com/channels/scdnalong)[![Follow on Twitter](http://img.shields.io/badge/twitter-%40nf__core-1DA1F2?labelColor=000000&logo=twitter)](https://twitter.com/nf_core)[![Follow on Mastodon](https://img.shields.io/badge/mastodon-nf__core-6364ff?labelColor=FFFFFF&logo=mastodon)](https://mstdn.science/@nf_core)[![Watch on YouTube](http://img.shields.io/badge/youtube-nf--core-FF0000?labelColor=000000&logo=youtube)](https://www.youtube.com/c/nf-core)
+scdnalong is a Nextflow pipeline that processes single-cell long-read **DNA** data
+from Oxford Nanopore sequencing of 10x Genomics barcoded libraries (the ATAC arm of
+10x Multiome). Per sample, it identifies cell barcodes in the reads, assigns each
+read to a cell, aligns to a reference genome, and marks PCR duplicates per cell. It
+produces a cell-barcode-tagged, duplicate-marked BAM file and QC reports.
 
-## Introduction
+**Relation to other pipelines.** scdnalong was built from the
+[nf-core](https://nf-co.re) template and borrows its QC subworkflows from
+[nf-core/scnanoseq](https://github.com/nf-core/scnanoseq), but it is **not** an
+nf-core pipeline and is **not** part of nf-core/scnanoseq (the `nf-core/` prefix that
+appears in log messages comes from the template). nf-core/scnanoseq handles
+single-cell long-read *RNA*; scdnalong handled the *DNA* arm. LRSinglecell now
+combines both.
 
-**nf-core/scdnalong** is a bioinformatics pipeline that ...
+## Version used in publications
 
-<!-- TODO nf-core:
-   Complete this sentence with a 2-3 sentence summary of what types of data the pipeline ingests, a brief overview of the
-   major pipeline sections and the types of output it produces. You're giving an overview to someone new
-   to nf-core here, in 15-20 seconds. For an example, see https://github.com/nf-core/rnaseq/blob/master/README.md#introduction
--->
+| What | Value |
+| --- | --- |
+| Release | [`0.0.1`](https://github.com/IntGenomicsLab/scdnalong/releases/tag/0.0.1) |
+| Commit | `d600a80bdd54a8cb9f11b65f3eb7b7da10d8461e` |
+| Nextflow | 24.10.4 (see [Nextflow version](#nextflow-version)) |
 
-<!-- TODO nf-core: Include a figure that guides the user through the major workflow steps. Many nf-core
-     workflows use the "tube map" design for that. See https://nf-co.re/docs/contributing/design_guidelines#examples for examples.   -->
-<!-- TODO nf-core: Fill in short bullet-pointed list of the default steps in the pipeline -->
+Always run with `-r 0.0.1`. The `dev` branch has changed since then (newer flexiplex
+version, an extra filtering option, Slurm job arrays) and will not give identical
+output.
 
-1. Read QC ([`FastQC`](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/))
-2. Present QC for raw reads ([`MultiQC`](http://multiqc.info/))
+## Pipeline steps
 
-## Usage
+1. Concatenate all FASTQ files of a sample (`cat`).
+2. Read QC: FastQC, NanoPlot, ToulligQC, `seqkit stats`, NanoComp.
+3. **Barcode discovery**: [flexiplex](https://github.com/DavidsonGroup/flexiplex)
+   (v1.01) counts candidate 16 bp cell barcodes, searched between the 10x ATAC
+   flanking sequences (left `ACCGAGATCTACAC`, right
+   `CGCGTCTGTCGTCGGCAGCGTCAGATGTGTATAAGAGACAG`, `-f 8` edit distance on flanks).
+4. **Barcode filtering**: `flexiplex-filter` keeps barcodes that are on the 10x
+   whitelist and above the knee (inflection point) of the barcode rank plot.
+5. **Read assignment**: reads are split into `--split_fastq_n` chunks
+   (`seqkit split2 --by-part`), demultiplexed by flexiplex against the filtered
+   barcode list in parallel, and merged again. The barcode is moved into the read name.
+6. **Alignment**: minimap2 `-ax map-ont` (secondary alignments kept by default).
+7. **Tagging**: [flexiformatter](https://github.com/ljwharbers/flexiformatter) (1.0.2)
+   moves the barcode from the read name into the `CB` BAM tag.
+8. **Duplicate marking**: Picard MarkDuplicates `--BARCODE_TAG CB`, so reads are only
+   called duplicates within the same cell. Duplicates are flagged, not removed.
+9. `samtools sort`/`index`/`stats`/`flagstat`/`idxstats`, NanoComp on the BAMs, and
+   MultiQC.
 
-> [!NOTE]
-> If you are new to Nextflow and nf-core, please refer to [this page](https://nf-co.re/docs/usage/installation) on how to set-up Nextflow. Make sure to [test your setup](https://nf-co.re/docs/usage/introduction#how-to-run-a-pipeline) with `-profile test` before running the workflow on actual data.
+All tools run from pinned BioContainers images; exact versions are in each
+module's `container` line and are reported in
+`<outdir>/pipeline_info/nf_core_pipeline_software_mqc_versions.yml` after a run.
 
-<!-- TODO nf-core: Describe the minimum required steps to execute the pipeline, e.g. how to prepare samplesheets.
-     Explain what rows and columns represent. For instance (please edit as appropriate):
+## Requirements
 
-First, prepare a samplesheet with your input data that looks as follows:
+- [Nextflow](https://www.nextflow.io/) **24.10.x** (not 25.10 or later, see below).
+- Docker, Singularity or Apptainer.
+- A reference genome FASTA (plain or `.gz`).
+- The 10x Genomics ARC ATAC barcode whitelist `737K-arc-v1.txt` (shipped with
+  Cell Ranger ARC as `cellranger-arc-*/lib/python/atac/barcodes/737K-arc-v1.txt.gz`;
+  also bundled in LRSinglecell as
+  [`assets/whitelist/cellranger_arc_atac.737K-arc-v1.txt.gz`](https://github.com/IntGenomicsLab/lrsinglecell/tree/main/assets/whitelist)).
+  Decompress it before use.
 
-`samplesheet.csv`:
+### Nextflow version
 
-```csv
-sample,fastq_1,fastq_2
-CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
-```
-
-Each row represents a fastq file (single-end) or a pair of fastq files (paired end).
-
--->
-
-Now, you can run the pipeline using:
-
-<!-- TODO nf-core: update the following command to include all required parameters for a minimal example -->
+`0.0.1` uses config syntax that the strict config parser of Nextflow 25.10+ rejects
+(`Variable declarations cannot be mixed with config statements`). Pin Nextflow
+24.10.4 for the run; this downloads it on first use and does not change your
+installed version:
 
 ```bash
-nextflow run nf-core/scdnalong \
-   -profile <docker/singularity/.../institute> \
-   --input samplesheet.csv \
-   --outdir <OUTDIR>
+export NXF_VER=24.10.4
 ```
 
-> [!WARNING]
-> Please provide pipeline parameters via the CLI or Nextflow `-params-file` option. Custom config files including those provided by the `-c` Nextflow option can be used to provide any configuration _**except for parameters**_; see [docs](https://nf-co.re/docs/usage/getting_started/configuration#custom-configuration-files).
+## Input: samplesheet
 
-For more details and further functionality, please refer to the [usage documentation](https://nf-co.re/scdnalong/usage) and the [parameter documentation](https://nf-co.re/scdnalong/parameters).
+A CSV file with a header and **two** columns. One row per FASTQ file; rows with the
+same `sample` are concatenated before processing.
 
-## Pipeline output
+```csv
+sample,fastq_1
+D0,/path/to/D0_ATAC_run1.fastq.gz
+D0,/path/to/D0_ATAC_run2.fastq.gz
+Q1,/path/to/Q1_ATAC.fastq.gz
+```
 
-To see the results of an example test run with a full size dataset refer to the [results](https://nf-co.re/scdnalong/results) tab on the nf-core website pipeline page.
-For more details about the output files and reports, please refer to the
-[output documentation](https://nf-co.re/scdnalong/output).
+| Column | Description |
+| --- | --- |
+| `sample` | Sample name, no spaces. Used as the output folder name. |
+| `fastq_1` | Basecalled Nanopore reads, gzipped (`.fastq.gz` or `.fq.gz`). Local path or URL. |
+
+There is no `fastq_2` column: Nanopore reads are single-end.
+
+## Running
+
+```bash
+export NXF_VER=24.10.4
+
+nextflow run IntGenomicsLab/scdnalong -r 0.0.1 \
+    -profile singularity \
+    --input samplesheet.csv \
+    --outdir results \
+    --fasta GRCh38.fasta \
+    --whitelist 737K-arc-v1.txt \
+    --barcode_format 10x_atac \
+    --split_fastq_n 24
+```
+
+Use `-profile docker` or `-profile apptainer` as appropriate, plus your
+institutional profile (or a `-c` config) for a cluster scheduler.
+
+### Parameters
+
+| Parameter | Required | Default | Description |
+| --- | --- | --- | --- |
+| `--input` | yes | | Samplesheet (see above). |
+| `--outdir` | yes | `./results` | Output directory. |
+| `--fasta` | yes | | Reference genome FASTA, plain or gzipped. |
+| `--whitelist` | yes | | Uncompressed 10x barcode whitelist (`737K-arc-v1.txt`). |
+| `--barcode_format` | yes | | Barcode layout. Only `10x_atac` is implemented. **If omitted, flexiplex silently uses its built-in 10x 3′ RNA layout**, which is wrong for these libraries. |
+| `--split_fastq_n` | no | `1` | Number of chunks each sample's FASTQ is split into for parallel demultiplexing (not a number of reads). Does not change results. |
+| `--save_secondary_alignment` | no | `true` | Keep secondary alignments from minimap2. |
+| `--skip_dedup` | no | `false` | Skip Picard MarkDuplicates. |
+| `--skip_qc` | no | `false` | Skip all QC steps. Individual QC tools: `--skip_fastqc`, `--skip_nanoplot`, `--skip_toulligqc`, `--skip_fastq_nanocomp`, `--skip_bam_nanocomp`, `--skip_multiqc`. |
+
+`--whitelist`, `--barcode_format` and `--split_fastq_n` are missing from the
+parameter schema, so Nextflow prints *"The following invalid input values have
+been detected"* for them. This warning is harmless; the values are used.
+
+### Small datasets
+
+`flexiplex-filter` searches for the knee between barcode rank 50 and the rank at the
+95th percentile of the barcode read counts. With very few barcodes (e.g. a heavily
+subsampled test file) that window is empty and the step fails with
+`ValueError: The lower bound must be greater than the upper bound`. `0.0.1` has no
+option to switch the knee search off; this does not happen with real datasets.
+
+## Output
+
+```
+results/
+├── <sample>/
+│   ├── bam/dedup/<sample>.dedup.sorted.bam(.bai)   # aligned, CB-tagged, duplicates flagged
+│   ├── flexiplex/
+│   │   ├── flexiplex_barcodes_counts.txt          # reads per candidate barcode
+│   │   ├── <sample>_known_barcodes.txt            # barcodes kept (whitelist + knee)
+│   │   └── <sample>.merged.fastq.gz               # demultiplexed reads
+│   └── qc/                                        # fastqc, nanoplot, toulligqc, seqkit, samtools
+├── batch_qcs/
+│   ├── multiqc/{raw_qc,final_qc}/multiqc_report.html
+│   └── nanocomp/{fastq,bam}/
+└── pipeline_info/                                 # execution report, trace, software versions
+```
+
+In the BAM, `CB` holds the cell barcode. Duplicates carry SAM flag `0x400`; filter
+them with `samtools view -F 0x400` if needed.
+
+## Test run on public data
+
+The pipeline was re-checked on 2026-11-09 with public data from
+[IntGenomicsLab/test-datasets](https://github.com/IntGenomicsLab/test-datasets/tree/main/lrsinglecell)
+(`sub_RPMI8402_DNA.fastq.gz`, 10x Multiome ATAC, and `chr21.fa`). On the `dev`
+branch this is available as `-profile test`:
+
+```bash
+NXF_VER=24.10.4 nextflow run IntGenomicsLab/scdnalong -r dev -profile test,singularity --outdir results_test
+```
+
+The test file contains only ~140 barcodes, so the test profile turns off the knee
+search (`--flexiplex_filter_args --no-inflection`, an option that exists on `dev`
+only; see [Small datasets](#small-datasets)) and uses `assets/whitelist_test.txt`, the
+101 barcodes of the 10x ARC ATAC whitelist that occur in the test reads. It also
+disables the Slurm job array of `SEQKIT_SPLIT2` so it runs on a laptop or a single
+node. A successful run ends with 410 aligned reads, all carrying a `CB` tag, across
+101 cells.
 
 ## Credits
 
-nf-core/scdnalong was originally written by Luuk Harbers.
-
-We thank the following people for their extensive assistance in the development of this pipeline:
-
-<!-- TODO nf-core: If applicable, make list of people who have also contributed -->
-
-## Contributions and Support
-
-If you would like to contribute to this pipeline, please see the [contributing guidelines](.github/CONTRIBUTING.md).
-
-For further information or help, don't hesitate to get in touch on the [Slack `#scdnalong` channel](https://nfcore.slack.com/channels/scdnalong) (you can join with [this invite](https://nf-co.re/join/slack)).
+scdnalong was written by Luuk Harbers. QC subworkflows were adapted from
+nf-core/scnanoseq (Austyn Trull, Lara Ianov). The pipeline skeleton comes from the
+nf-core template.
 
 ## Citations
 
-<!-- TODO nf-core: Add citation for pipeline after first release. Uncomment lines below and update Zenodo doi and badge at the top of this file. -->
-<!-- If you use nf-core/scdnalong for your analysis, please cite it using the following doi: [10.5281/zenodo.XXXXXX](https://doi.org/10.5281/zenodo.XXXXXX) -->
+If you use results produced with scdnalong, please cite the tools listed in
+[`CITATIONS.md`](CITATIONS.md), in particular flexiplex, minimap2, Picard and samtools,
+and the nf-core framework:
 
-<!-- TODO nf-core: Add bibliography of tools and data used in your pipeline -->
-
-An extensive list of references for the tools used by the pipeline can be found in the [`CITATIONS.md`](CITATIONS.md) file.
-
-You can cite the `nf-core` publication as follows:
-
-> **The nf-core framework for community-curated bioinformatics pipelines.**
->
-> Philip Ewels, Alexander Peltzer, Sven Fillinger, Harshil Patel, Johannes Alneberg, Andreas Wilm, Maxime Ulysse Garcia, Paolo Di Tommaso & Sven Nahnsen.
->
-> _Nat Biotechnol._ 2020 Feb 13. doi: [10.1038/s41587-020-0439-x](https://dx.doi.org/10.1038/s41587-020-0439-x).
+> Ewels PA, Peltzer A, Fillinger S, et al. The nf-core framework for
+> community-curated bioinformatics pipelines. *Nat Biotechnol.* 2020;38:276–278.
+> doi: [10.1038/s41587-020-0439-x](https://doi.org/10.1038/s41587-020-0439-x)
