@@ -1,6 +1,6 @@
 {
-    "name": "nf-core/scdnalr",
-    "homePage": "https://github.com/nf-core/scdnalr",
+    "name": "IntGenomicsLab/scdnalong",
+    "homePage": "https://github.com/IntGenomicsLab/scdnalong",
     "repos": {
         "https://github.com/nf-core/modules.git": {
             "modules": {

@@ -1,10 +1,10 @@
-# nf-core/scdnalr: Documentation
+# scdnalong: Documentation
 
-The nf-core/scdnalr documentation is split into the following pages:
+> [!IMPORTANT]
+> scdnalong is archived and superseded by
+> [LRSinglecell](https://github.com/IntGenomicsLab/lrsinglecell). These pages document
+> how to reproduce results made with scdnalong `0.0.1`.
 
-- [Usage](usage.md)
-  - An overview of how the pipeline works, how to run it and a description of all of the different command-line flags.
-- [Output](output.md)
-  - An overview of the different results produced by the pipeline and how to interpret them.
-
-You can find a lot more documentation about installing, configuring and running nf-core pipelines on the website: [https://nf-co.re](https://nf-co.re)
+- [README](../README.md): the complete guide (requirements, samplesheet, parameters, outputs, test run and known issues).
+- [Usage](usage.md): quick start, samplesheet format, required parameters and profiles.
+- [Output](output.md): the files the pipeline writes and how to read them.

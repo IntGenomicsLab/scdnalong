@@ -1,7 +1,7 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://raw.githubusercontent.com/nf-core/scdnalr/master/nextflow_schema.json",
-    "title": "nf-core/scdnalr pipeline parameters",
+    "$id": "https://raw.githubusercontent.com/IntGenomicsLab/scdnalong/dev/nextflow_schema.json",
+    "title": "IntGenomicsLab/scdnalong pipeline parameters",
     "description": "Pipeline for processing single-cell long read DNA data. For example 10X-style barcoded DNA data that is sequenced on ONT/PacBio.",
     "type": "object",
     "$defs": {
@@ -20,7 +20,7 @@
                     "mimetype": "text/csv",
                     "pattern": "^\\S+\\.csv$",
                     "description": "Path to comma-separated file containing information about the samples in the experiment.",
-                    "help_text": "You will need to create a design file with information about the samples in your experiment before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row. See [usage docs](https://nf-co.re/scdnalr/usage#samplesheet-input).",
+                    "help_text": "You will need to create a design file with information about the samples in your experiment before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 2 columns (`sample`, `fastq_1`) and a header row. See the [README](https://github.com/IntGenomicsLab/scdnalong#input-samplesheet).",
                     "fa_icon": "fas fa-file-csv"
                 },
                 "outdir": {
