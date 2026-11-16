@@ -4,15 +4,15 @@
   |\\ | |__  __ /  ` /  \\ |__) |__         }  {
   | \\| |       \\__, \\__/ |  \\ |___     \\`-._,-`-,
                                         `._,._,'
-  nf-core/scdnalr ${version}
+  IntGenomicsLab/scdnalong ${version}
 ----------------------------------------------------
 Run Name: $runName
 
 <% if (success){
-    out << "## nf-core/scdnalr execution completed successfully! ##"
+    out << "## IntGenomicsLab/scdnalong execution completed successfully! ##"
 } else {
     out << """####################################################
-## nf-core/scdnalr execution completed unsuccessfully! ##
+## IntGenomicsLab/scdnalong execution completed unsuccessfully! ##
 ####################################################
 The exit status of the task that caused the workflow execution to fail was: $exitStatus.
 The full error message was:
@@ -35,5 +35,5 @@ Pipeline Configuration:
 <% out << summary.collect{ k,v -> " - $k: $v" }.join("\n") %>
 
 --
-nf-core/scdnalr
-https://github.com/nf-core/scdnalr
+IntGenomicsLab/scdnalong
+https://github.com/IntGenomicsLab/scdnalong

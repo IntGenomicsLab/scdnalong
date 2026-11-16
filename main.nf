@@ -1,11 +1,10 @@
 #!/usr/bin/env nextflow
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    nf-core/scdnalr
+    IntGenomicsLab/scdnalong
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Github : https://github.com/nf-core/scdnalr
-    Website: https://nf-co.re/scdnalr
-    Slack  : https://nfcore.slack.com/channels/scdnalr
+    Github : https://github.com/IntGenomicsLab/scdnalong
+    Docs   : https://github.com/IntGenomicsLab/scdnalong/blob/dev/README.md
 ----------------------------------------------------------------------------------------
 */
 

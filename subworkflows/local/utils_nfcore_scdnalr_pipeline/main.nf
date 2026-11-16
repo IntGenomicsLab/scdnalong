@@ -1,5 +1,5 @@
 //
-// Subworkflow with functionality specific to the nf-core/scdnalr pipeline
+// Subworkflow with functionality specific to the IntGenomicsLab/scdnalong pipeline
 //
 
 /*

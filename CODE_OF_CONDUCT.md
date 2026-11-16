@@ -32,7 +32,7 @@ An up-to-date list of members of the nf-core core team can be found [here](https
 
 Our Safety Officers are Saba Nafees, Cris Tuñí, and Michael Heuer.
 
-nf-core is a young and growing community that welcomes contributions from anyone with a shared vision for [Open Science Policies](https://www.fosteropenscience.eu/taxonomy/term/8). Open science policies encompass inclusive behaviours and we strive to build and maintain a safe and inclusive environment for all individuals.
+nf-core is a young and growing community that welcomes contributions from anyone with a shared vision for Open Science Policies. Open science policies encompass inclusive behaviours and we strive to build and maintain a safe and inclusive environment for all individuals.
 
 We have therefore adopted this CoC, which we require all members of our community and attendees of nf-core events to adhere to in all our workspaces at all times. Workspaces include, but are not limited to, Slack, meetings on Zoom, gather.town, YouTube live etc.
 
