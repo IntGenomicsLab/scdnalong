@@ -20,7 +20,7 @@ include { MULTIQC as MULTIQC_FINALQC        } from "../modules/nf-core/multiqc/m
 include { paramsSummaryMap                  } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc              } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML            } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText            } from '../subworkflows/local/utils_nfcore_scdnalr_pipeline'
+include { methodsDescriptionText            } from '../subworkflows/local/utils_nfcore_scdnalong_pipeline'
 
 include { CAT_FASTQ as CAT_FASTQ_SAMPLE     } from '../modules/nf-core/cat/fastq/main'
 include { SEQKIT_STATS as SEQKIT_STATS_PRE  } from '../modules/nf-core/seqkit/stats/main'
@@ -48,7 +48,7 @@ include { BAM_SORT_STATS_SAMTOOLS                                   } from '../s
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-workflow SCDNALR {
+workflow SCDNALONG {
 
     take:
     ch_samplesheet // channel: samplesheet read in from --input
