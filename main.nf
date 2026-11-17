@@ -14,10 +14,10 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { SCDNALR  } from './workflows/scdnalr'
-include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_scdnalr_pipeline'
-include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_scdnalr_pipeline'
-include { getGenomeAttribute      } from './subworkflows/local/utils_nfcore_scdnalr_pipeline'
+include { SCDNALONG  } from './workflows/scdnalong'
+include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_scdnalong_pipeline'
+include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_scdnalong_pipeline'
+include { getGenomeAttribute      } from './subworkflows/local/utils_nfcore_scdnalong_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -39,7 +39,7 @@ params.fasta = getGenomeAttribute('fasta')
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow NFCORE_SCDNALR {
+workflow NFCORE_SCDNALONG {
 
     take:
     samplesheet // channel: samplesheet read in from --input
@@ -49,11 +49,11 @@ workflow NFCORE_SCDNALR {
     //
     // WORKFLOW: Run pipeline
     //
-    SCDNALR (
+    SCDNALONG (
         samplesheet
     )
     emit:
-    multiqc_report = SCDNALR.out.multiqc_report // channel: /path/to/multiqc_report.html
+    multiqc_report = SCDNALONG.out.multiqc_report // channel: /path/to/multiqc_report.html
 }
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -79,7 +79,7 @@ workflow {
     //
     // WORKFLOW: Run main workflow
     //
-    NFCORE_SCDNALR (
+    NFCORE_SCDNALONG (
         PIPELINE_INITIALISATION.out.samplesheet
     )
     //
@@ -92,7 +92,7 @@ workflow {
         params.outdir,
         params.monochrome_logs,
         params.hook_url,
-        NFCORE_SCDNALR.out.multiqc_report
+        NFCORE_SCDNALONG.out.multiqc_report
     )
 }
 
